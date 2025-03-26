@@ -1,64 +1,63 @@
 import numpy as np
 
-class HammingNetwork:
+class HopfieldNetwork:
     def __init__(self, patterns):
         """
-        Инициализация сети Хэмминга.
+        Инициализация сети Хопфилда.
 
         Args:
-            patterns (dict): Словарь, где ключи - это названия букв,
-                             а значения - это бинарные векторы (+1/-1)
-                             представляющие эти буквы.
+            patterns (dict): Словарь, где ключи - названия образцов,
+                             а значения - биполярные векторы (+1/-1).
         """
         self.patterns = patterns
-        self.num_patterns = len(patterns)
         self.pattern_size = len(list(patterns.values())[0])
-        self.weights_layer1 = np.array(list(patterns.values())) / 2
-        self.biases_layer1 = np.ones(self.num_patterns) * self.pattern_size / 2
-        self.epsilon = 0.1  # Параметр для Maxnet
+        self.num_patterns = len(patterns)
+        
+        # Инициализация весов по правилу Хебба
+        self.weights = np.zeros((self.pattern_size, self.pattern_size))
+        for pattern in patterns.values():
+            x = np.array(pattern).reshape(-1, 1)  # Преобразуем в вектор-столбец
+            self.weights += np.dot(x, x.T)
+        self.weights /= self.pattern_size  # Нормализация
+        np.fill_diagonal(self.weights, 0)  # Обнуление диагонали
 
-    def predict(self, input_vector):
+    def predict(self, input_vector, max_iter=100):
         """
-        Распознавание входного вектора.
+        Восстановление образца из входного вектора.
 
         Args:
-            input_vector (np.array): Бинарный вектор (+1/-1) входного сигнала.
+            input_vector (np.array): Бинарный вектор (+1/-1) для распознавания.
+            max_iter (int): Максимальное количество итераций обновления.
 
         Returns:
-            str or None: Название распознанной буквы или None, если распознавание не удалось.
+            str or None: Название ближайшего образца или None.
         """
-        if len(input_vector) != self.pattern_size:
-            raise ValueError("Размер входного вектора не соответствует размеру образцов.")
-
-        # Первый слой: вычисление расстояния Хэмминга (в обратной интерпретации)
-        output_layer1 = np.dot(self.weights_layer1, input_vector) + self.biases_layer1
-
-        # Второй слой (Maxnet): нахождение нейрона с максимальной активацией
-        output_layer2 = output_layer1.copy()
-        while True:
-            previous_output = output_layer2.copy()
-            for i in range(self.num_patterns):
-                sum_inhibitory = 0
-                for j in range(self.num_patterns):
-                    if i != j:
-                        sum_inhibitory += max(0, output_layer2[j])
-                output_layer2[i] = max(0, output_layer1[i] - self.epsilon * sum_inhibitory)
-
-            # Проверка на сходимость
-            if np.array_equal(output_layer2, previous_output):
+        y = np.array(input_vector.copy())
+        prev_y = np.zeros_like(y)
+        
+        # Асинхронное обновление с проверкой стабильности
+        for _ in range(max_iter):
+            prev_y[:] = y[:]
+            # Обновление нейронов в случайном порядке
+            order = np.random.permutation(self.pattern_size)
+            for i in order:
+                activation = np.dot(self.weights[i, :], y)
+                y[i] = 1 if activation >= 0 else -1
+            if np.array_equal(y, prev_y):
                 break
-
-        # Определение победителя
-        winner_index = np.argmax(output_layer2)
-        if output_layer2[winner_index] > 0:
-            return list(self.patterns.keys())[winner_index]
-        else:
-            return None
+        
+        # Поиск ближайшего образца
+        min_dist = np.inf
+        best_name = None
+        for name, pattern in self.patterns.items():
+            dist = np.sum(y != pattern)
+            if dist < min_dist:
+                min_dist = dist
+                best_name = name
+        return best_name if min_dist <= self.pattern_size else None
 
 if __name__ == '__main__':
-    # Пример представления букв (простые шаблоны 5x3)
-    # +1 представляет "включенный" пиксель, -1 - "выключенный"
-
+    # Примеры образцов (те же, что и для сети Хэмминга)
     letter_patterns = {
         'A': np.array([+1, +1, +1,
                        +1, -1, +1,
@@ -82,10 +81,10 @@ if __name__ == '__main__':
                        +1, +1, -1])
     }
 
-    # Создание сети Хэмминга
-    hamming_net = HammingNetwork(letter_patterns)
+    # Создание сети
+    hopfield_net = HopfieldNetwork(letter_patterns)
 
-    # Тестовые входные данные
+    # Тестовые данные
     test_inputs = {
         'Чистая A': np.array([+1, +1, +1, +1, -1, +1, +1, +1, +1, +1, -1, +1, +1, -1, +1]),
         'Зашумленная A': np.array([+1, +1, -1, +1, -1, +1, +1, +1, +1, +1, +1, +1, +1, -1, +1]),
@@ -94,8 +93,7 @@ if __name__ == '__main__':
         'Неизвестный символ': np.array([-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1])
     }
 
-    # Тестирование сети
+    # Проверка работы сети
     for name, input_data in test_inputs.items():
-        prediction = hamming_net.predict(input_data)
+        prediction = hopfield_net.predict(input_data)
         print(f"Вход: {name}, Распознано: {prediction}")
-xyz=input("end")
