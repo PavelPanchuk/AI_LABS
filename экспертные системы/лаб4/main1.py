@@ -1,15 +1,11 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import pandas as pd
 import numpy as np
 
+# --- Оригинальный класс сети Хэмминга ---
 class HammingNetwork:
     def __init__(self, patterns):
-        """
-        Инициализация сети Хэмминга.
-
-        Args:
-            patterns (dict): Словарь, где ключи - это названия букв,
-                             а значения - это бинарные векторы (+1/-1)
-                             представляющие эти буквы.
-        """
         self.patterns = patterns
         self.num_patterns = len(patterns)
         self.pattern_size = len(list(patterns.values())[0])
@@ -18,83 +14,97 @@ class HammingNetwork:
         self.epsilon = 0.1  # Параметр для Maxnet
 
     def predict(self, input_vector):
-        """
-        Распознавание входного вектора.
-
-        Args:
-            input_vector (np.array): Бинарный вектор (+1/-1) входного сигнала.
-
-        Returns:
-            str or None: Название распознанной буквы или None, если распознавание не удалось.
-        """
         if len(input_vector) != self.pattern_size:
             raise ValueError("Размер входного вектора не соответствует размеру образцов.")
 
-        # Первый слой: вычисление расстояния Хэмминга (в обратной интерпретации)
         output_layer1 = np.dot(self.weights_layer1, input_vector) + self.biases_layer1
-
-        # Второй слой (Maxnet): нахождение нейрона с максимальной активацией
         output_layer2 = output_layer1.copy()
         while True:
             previous_output = output_layer2.copy()
             for i in range(self.num_patterns):
-                sum_inhibitory = 0
-                for j in range(self.num_patterns):
-                    if i != j:
-                        sum_inhibitory += max(0, output_layer2[j])
+                sum_inhibitory = sum(max(0, output_layer2[j]) for j in range(self.num_patterns) if i != j)
                 output_layer2[i] = max(0, output_layer1[i] - self.epsilon * sum_inhibitory)
-
-            # Проверка на сходимость
             if np.array_equal(output_layer2, previous_output):
                 break
 
-        # Определение победителя
         winner_index = np.argmax(output_layer2)
-        if output_layer2[winner_index] > 0:
-            return list(self.patterns.keys())[winner_index]
-        else:
-            return None
+        return list(self.patterns.keys())[winner_index] if output_layer2[winner_index] > 0 else None
 
-if __name__ == '__main__':
-    # Пример представления букв (простые шаблоны 5x3)
-    # +1 представляет "включенный" пиксель, -1 - "выключенный"
+# --- GUI функция ---
+def run_hamming():
+    train_path = filedialog.askopenfilename(title="Выбери обучающий Excel", filetypes=[("Excel", "*.xlsx *.xls")])
+    if not train_path:
+        return
+    test_path = filedialog.askopenfilename(title="Выбери тестовый Excel", filetypes=[("Excel", "*.xlsx *.xls")])
+    if not test_path:
+        return
 
-    letter_patterns = {
-        'A': np.array([+1, +1, +1,
-                       +1, -1, +1,
-                       +1, +1, +1,
-                       +1, -1, +1,
-                       +1, -1, +1]),
-        'B': np.array([+1, +1, -1,
-                       +1, -1, +1,
-                       +1, +1, -1,
-                       +1, -1, +1,
-                       +1, +1, -1]),
-        'C': np.array([+1, +1, +1,
-                       +1, -1, -1,
-                       +1, -1, -1,
-                       +1, -1, -1,
-                       +1, +1, +1]),
-        'D': np.array([+1, +1, -1,
-                       +1, -1, +1,
-                       +1, -1, +1,
-                       +1, -1, +1,
-                       +1, +1, -1])
-    }
+    try:
+        # --- Загружаем обучающие данные ---
+        df_train = pd.read_excel(train_path, header=None)
+        labels = df_train.iloc[-1].dropna().values
+        df_train = df_train.iloc[:-1]
 
-    # Создание сети Хэмминга
-    hamming_net = HammingNetwork(letter_patterns)
+        patterns = {}
+        for idx, label in enumerate(labels):
+            # Преобразуем в числовые значения и +1/-1
+            col_values = df_train.iloc[:, idx*3:(idx+1)*3].apply(pd.to_numeric, errors='coerce').fillna(0).values.flatten()
+            vector = np.where(col_values == 0, -1, +1)
+            patterns[label] = vector
 
-    # Тестовые входные данные
-    test_inputs = {
-        'Чистая A': np.array([+1, +1, +1, +1, -1, +1, +1, +1, +1, +1, -1, +1, +1, -1, +1]),
-        'Зашумленная A': np.array([+1, +1, -1, +1, -1, +1, +1, +1, +1, +1, +1, +1, +1, -1, +1]),
-        'Чистая B': np.array([+1, +1, -1, +1, -1, +1, +1, +1, -1, +1, -1, +1, +1, +1, -1]),
-        'Чистая C': np.array([+1, +1, +1, +1, -1, -1, +1, -1, -1, +1, -1, -1, +1, +1, +1]),
-        'Неизвестный символ': np.array([-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1])
-    }
+        # Создаем сеть
+        net = HammingNetwork(patterns)
 
-    # Тестирование сети
-    for name, input_data in test_inputs.items():
-        prediction = hamming_net.predict(input_data)
-        print(f"Вход: {name}, Распознано: {prediction}")
+        # --- Загружаем тестовый символ ---
+        df_test = pd.read_excel(test_path, header=None)
+        test_vector = np.where(df_test.values.flatten() == 0, -1, +1)
+
+        # --- Распознаем ---
+        result = net.predict(test_vector)
+
+        # --- Очистка окна ---
+        for widget in frame_main.winfo_children():
+            widget.destroy()
+
+        # --- Вывод результатов ---
+        tk.Label(frame_main, text="Результат распознавания:", font=("Arial", 14)).pack(pady=10)
+        text_box = tk.Text(frame_main, width=70, height=20, font=("Consolas", 12))
+        text_box.pack(pady=10)
+
+        # Тестовая последовательность
+        seq_str = ''.join(['1' if x==1 else '0' for x in test_vector])
+        text_box.insert(tk.END, f"Распознанная буква: {result if result else 'Неизвестно'}   Последовательность: {seq_str}\n\n")
+
+        # Отображение обучающих шаблонов
+        text_box.insert(tk.END, "Обучающие шаблоны:\n")
+        for k, v in patterns.items():
+            pattern_str = ''.join(['1' if x==1 else '0' for x in v])
+            text_box.insert(tk.END, f"{k}: {pattern_str}\n")
+
+        # Кнопка сброса
+        def reset_app():
+            for w in frame_main.winfo_children():
+                w.destroy()
+            label_title.pack(pady=20)
+            button_run.pack(pady=10)
+
+        tk.Button(frame_main, text="Сбросить", command=reset_app, bg="lightgray").pack(pady=10)
+
+    except Exception as e:
+        messagebox.showerror("Ошибка", f"Ошибка при обработке файлов:\n{e}")
+
+# --- GUI ---
+root = tk.Tk()
+root.title("Распознавание символов (Сеть Хэмминга)")
+root.geometry("700x500")
+
+frame_main = tk.Frame(root)
+frame_main.pack(expand=True, fill="both")
+
+label_title = tk.Label(frame_main, text="Сеть Хэмминга — загрузите обучающую и тестовую выборку", font=("Arial", 14))
+label_title.pack(pady=20)
+
+button_run = tk.Button(frame_main, text="Загрузить файлы и распознать", command=run_hamming, bg="lightblue", font=("Arial", 12))
+button_run.pack(pady=10)
+
+root.mainloop()

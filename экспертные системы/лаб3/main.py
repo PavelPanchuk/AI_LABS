@@ -9,8 +9,8 @@ from tensorflow.keras.optimizers import Adam
 # --- функция обучения модели ---
 def train_model(X, y):
     model = Sequential([
-        Dense(8, input_dim=4, activation='relu'),
-        Dense(4, activation='relu'),
+        Dense(16, input_dim=8, activation='relu'),
+        Dense(8, activation='relu'),
         Dense(1, activation='sigmoid')
     ])
     model.compile(optimizer=Adam(learning_rate=0.01), loss='binary_crossentropy', metrics=['accuracy'])
@@ -19,7 +19,7 @@ def train_model(X, y):
 
 # --- функция преобразования числа в двоичный вектор ---
 def to_binary_array(n):
-    return np.array([int(b) for b in format(int(n), '04b')], dtype=float)
+    return np.array([int(b) for b in format(int(n), '08b')], dtype=float)
 
 # --- основное окно ---
 root = tk.Tk()
@@ -51,16 +51,21 @@ def load_excel():
         # Преобразуем числа в 4-битные двоичные вектора
         X = np.array([to_binary_array(n) for n in numbers], dtype=float)
 
-        # Проверка формы
-        if X.ndim != 2 or X.shape[1] != 4:
-            messagebox.showerror("Ошибка", "Ошибка формирования бинарных данных. Проверь содержимое столбца 'число'.")
-            return
+        # # Проверка формы
+        # if X.ndim != 2 or X.shape[1] != 4:
+        #     messagebox.showerror("Ошибка", "Ошибка формирования бинарных данных. Проверь содержимое столбца 'число'.")
+        #     return
 
         # Обучение модели
         model = train_model(X, labels)
 
         # Предсказания
+        # Предсказания (на тех же данных из Excel)
         predictions = model.predict(X)
+
+        all_numbers = np.arange(1, 32)
+        X_all = np.array([to_binary_array(n) for n in all_numbers], dtype=float)
+        pred_all = model.predict(X_all) 
 
         # Очистка интерфейса
         for widget in frame_main.winfo_children():
@@ -71,9 +76,10 @@ def load_excel():
         text_box = tk.Text(frame_main, width=40, height=15, font=("Consolas", 10))
         text_box.pack(pady=10)
 
-        for n, pred in zip(numbers, predictions):
+        for n, pred in zip(all_numbers, pred_all):
             parity = "нечётное" if pred >= 0.5 else "чётное"
-            text_box.insert(tk.END, f"{n:2d} ({format(n, '04b')}): {parity} ({pred[0]:.2f})\n")
+            text_box.insert(tk.END, f"{n:2d} ({format(n, '08b')}): {parity} ({pred[0]:.2f})\n")
+
 
         # Кнопка "Сбросить"
         def reset_app():
