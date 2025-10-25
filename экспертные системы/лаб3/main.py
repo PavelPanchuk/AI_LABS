@@ -1,35 +1,94 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import pandas as pd
 import numpy as np
-import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.optimizers import Adam
 
-# Подготовка данных
-numbers = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], dtype=float)
-labels = np.array([1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0], dtype=float)  # 1 - нечётное, 0 - чётное
+# --- функция обучения модели ---
+def train_model(X, y):
+    model = Sequential([
+        Dense(8, input_dim=4, activation='relu'),
+        Dense(4, activation='relu'),
+        Dense(1, activation='sigmoid')
+    ])
+    model.compile(optimizer=Adam(learning_rate=0.01), loss='binary_crossentropy', metrics=['accuracy'])
+    model.fit(X, y, epochs=200, verbose=0)
+    return model
 
-# Нормализация данных
-numbers = numbers / 10
+# --- функция преобразования числа в двоичный вектор ---
+def to_binary_array(n):
+    return np.array([int(b) for b in format(int(n), '04b')], dtype=float)
 
-# Создание модели
-model = Sequential([
-    Dense(8, input_dim=1, activation='relu'),  # Первый скрытый слой с 8 нейронами
-    Dense(4, activation='relu'),              # Второй скрытый слой с 4 нейронами
-    Dense(1, activation='sigmoid')            # Выходной слой с сигмоидальной активацией
-])
+# --- основное окно ---
+root = tk.Tk()
+root.title("Определение чётности числа")
+root.geometry("500x400")
 
-# Компиляция модели
-model.compile(optimizer=Adam(learning_rate=0.01), loss='binary_crossentropy', metrics=['accuracy'])
+frame_main = tk.Frame(root)
+frame_main.pack(expand=True, fill="both")
 
-# Обучение модели
-model.fit(numbers, labels, epochs=100, verbose=1)
+label_title = tk.Label(frame_main, text="Загрузка Excel с числами", font=("Arial", 14))
+label_title.pack(pady=20)
 
-# Тестовые данные
-test_numbers = np.array([6, 7, 11, 12], dtype=float) / 10  # Нормализация тестовых данных
-predictions = model.predict(test_numbers)
+def load_excel():
+    file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
+    if not file_path:
+        return
 
-# Вывод результата
-for num, pred in zip(test_numbers * 10, predictions):
-    print(f"Число {int(num)}: {'нечётное' if pred > 0.5 else 'чётное'}")
+    try:
+        df = pd.read_excel(file_path)
+        if not {"число", "признак четности"}.issubset(df.columns):
+            messagebox.showerror("Ошибка", "Файл должен содержать столбцы: 'число' и 'признак четности'")
+            return
 
-xyz=input("end")
+        # Очистка данных
+        df = df.dropna(subset=["число", "признак четности"])  # убираем пустые строки
+        numbers = df["число"].astype(int).values.tolist()
+        labels = df["признак четности"].astype(float).values
+
+        # Преобразуем числа в 4-битные двоичные вектора
+        X = np.array([to_binary_array(n) for n in numbers], dtype=float)
+
+        # Проверка формы
+        if X.ndim != 2 or X.shape[1] != 4:
+            messagebox.showerror("Ошибка", "Ошибка формирования бинарных данных. Проверь содержимое столбца 'число'.")
+            return
+
+        # Обучение модели
+        model = train_model(X, labels)
+
+        # Предсказания
+        predictions = model.predict(X)
+
+        # Очистка интерфейса
+        for widget in frame_main.winfo_children():
+            widget.destroy()
+
+        # Вывод результатов
+        tk.Label(frame_main, text="Результаты предсказания:", font=("Arial", 14)).pack(pady=10)
+        text_box = tk.Text(frame_main, width=40, height=15, font=("Consolas", 10))
+        text_box.pack(pady=10)
+
+        for n, pred in zip(numbers, predictions):
+            parity = "нечётное" if pred >= 0.5 else "чётное"
+            text_box.insert(tk.END, f"{n:2d} ({format(n, '04b')}): {parity} ({pred[0]:.2f})\n")
+
+        # Кнопка "Сбросить"
+        def reset_app():
+            for widget in frame_main.winfo_children():
+                widget.destroy()
+            label_title.pack(pady=20)
+            button_load.pack(pady=10)
+
+        tk.Button(frame_main, text="Сбросить", command=reset_app, bg="lightgray").pack(pady=10)
+
+    except Exception as e:
+        messagebox.showerror("Ошибка", f"Не удалось обработать файл:\n{e}")
+
+
+button_load = tk.Button(frame_main, text="Загрузить Excel", command=load_excel, bg="lightblue", font=("Arial", 12))
+button_load.pack(pady=10)
+
+root.mainloop()
