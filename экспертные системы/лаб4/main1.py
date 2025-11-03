@@ -83,10 +83,10 @@ def run_hamming():
 
         # Кнопка сброса
         def reset_app():
-            for w in frame_main.winfo_children():
-                w.destroy()
-            label_title.pack(pady=20)
-            button_run.pack(pady=10)
+            for widget in frame_main.winfo_children():
+                widget.destroy()
+            tk.Label(frame_main, text="Сеть Хэмминга — загрузите обучающую и тестовую выборку", font=("Arial", 14)).pack(pady=20)
+            tk.Button(frame_main, text="Загрузить файлы и распознать", command=run_hamming, bg="lightblue", font=("Arial", 12)).pack(pady=10)
 
         tk.Button(frame_main, text="Сбросить", command=reset_app, bg="lightgray").pack(pady=10)
 
