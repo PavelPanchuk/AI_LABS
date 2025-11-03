@@ -9,9 +9,13 @@ class HammingNetwork:
         self.patterns = patterns
         self.num_patterns = len(patterns)
         self.pattern_size = len(list(patterns.values())[0])
+
+        # Слой 1
         self.weights_layer1 = np.array(list(patterns.values())) / 2
         self.biases_layer1 = np.ones(self.num_patterns) * self.pattern_size / 2
-        self.epsilon = 0.1  # Параметр для Maxnet
+
+        # Слой 2 (Maxnet)
+        self.epsilon = 1 / (2 * self.num_patterns)
 
     def predict(self, input_vector):
         if len(input_vector) != self.pattern_size:
@@ -19,12 +23,13 @@ class HammingNetwork:
 
         output_layer1 = np.dot(self.weights_layer1, input_vector) + self.biases_layer1
         output_layer2 = output_layer1.copy()
+
         while True:
-            previous_output = output_layer2.copy()
+            prev = output_layer2.copy()
             for i in range(self.num_patterns):
-                sum_inhibitory = sum(max(0, output_layer2[j]) for j in range(self.num_patterns) if i != j)
-                output_layer2[i] = max(0, output_layer1[i] - self.epsilon * sum_inhibitory)
-            if np.array_equal(output_layer2, previous_output):
+                inhibition = np.sum(np.maximum(0, output_layer2)) - max(0, output_layer2[i])
+                output_layer2[i] = max(0, output_layer1[i] - self.epsilon * inhibition)
+            if np.allclose(output_layer2, prev, atol=1e-6):
                 break
 
         winner_index = np.argmax(output_layer2)

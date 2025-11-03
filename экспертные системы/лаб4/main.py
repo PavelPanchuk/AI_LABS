@@ -14,6 +14,8 @@ class HopfieldNetwork:
             x = np.array(pattern).reshape(-1, 1)
             self.weights += np.dot(x, x.T)
         self.weights /= self.pattern_size
+        # self.weights /= self.num_patterns  # вместо pattern_size
+
         np.fill_diagonal(self.weights, 0)
 
     def predict(self, input_vector, max_iter=100):
@@ -83,11 +85,11 @@ def run_hopfield():
         seq_str = ''.join(['1' if x==1 else '0' for x in test_vector])
         text_box.insert(tk.END, f"Распознанная буква: {result}   Последовательность: {seq_str}\n\n")
 
-        # Расстояния до всех шаблонов
-        text_box.insert(tk.END, "Расстояния Хэмминга до обучающих шаблонов:\n")
-        for k, v in patterns.items():
-            dist = np.sum(stabilized_vector != v)
-            text_box.insert(tk.END, f"{k}: {dist} различий\n")
+        # # Расстояния до всех шаблонов
+        # text_box.insert(tk.END, "Расстояния Хэмминга до обучающих шаблонов:\n")
+        # for k, v in patterns.items():
+        #     dist = np.sum(stabilized_vector != v)
+        #     text_box.insert(tk.END, f"{k}: {dist} различий\n")
 
         # Обучающие шаблоны
         text_box.insert(tk.END, "\nОбучающие шаблоны:\n")
