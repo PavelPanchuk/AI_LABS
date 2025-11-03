@@ -85,8 +85,8 @@ def load_excel():
         def reset_app():
             for widget in frame_main.winfo_children():
                 widget.destroy()
-            label_title.pack(pady=20)
-            button_load.pack(pady=10)
+            tk.Label(frame_main, text="Загрузка Excel с числами", font=("Arial", 14)).pack(pady=20)
+            tk.Button(frame_main, text="Загрузить Excel", command=load_excel, bg="lightblue", font=("Arial", 12)).pack(pady=10)
 
         tk.Button(frame_main, text="Сбросить", command=reset_app, bg="lightgray").pack(pady=10)
 
